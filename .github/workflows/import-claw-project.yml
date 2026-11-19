@@ -1,1 +1,78 @@
 
+name: Import CLAW Unity Project
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "CLAW_Repo_Import_v1.zip"
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Extract Unity project
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          import shutil
+
+          archive = Path("CLAW_Repo_Import_v1.zip")
+          if not archive.exists():
+              raise SystemExit("Could not find CLAW_Repo_Import_v1.zip")
+
+          temp = Path("_claw_import_tmp")
+          if temp.exists():
+              shutil.rmtree(temp)
+
+          temp.mkdir()
+
+          with ZipFile(archive) as z:
+              z.extractall(temp)
+
+          projects = [
+              p.parent.parent
+              for p in temp.rglob("ProjectVersion.txt")
+              if p.parent.name == "ProjectSettings"
+              and (p.parent.parent / "Assets").is_dir()
+          ]
+
+          if len(projects) != 1:
+              raise SystemExit(
+                  f"Expected one Unity project, found {len(projects)}"
+              )
+
+          project = projects[0]
+          print(f"Importing Unity project from: {project}")
+
+          for item in project.iterdir():
+              destination = Path.cwd() / item.name
+              if item.is_dir():
+                  shutil.copytree(item, destination, dirs_exist_ok=True)
+              else:
+                  shutil.copy2(item, destination)
+
+          shutil.rmtree(temp)
+          print("CLAW project files imported.")
+          PY
+
+      - name: Commit imported project
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No new changes to commit."
+          else
+            git commit -m "Import CLAW Unity project"
+            git push
+          fi
+          
