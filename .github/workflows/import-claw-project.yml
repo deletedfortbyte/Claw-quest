@@ -27,12 +27,11 @@ jobs:
 
           archive = Path("CLAW_Repo_Import_v1.zip")
           if not archive.exists():
-              raise SystemExit("Could not find CLAW_Repo_Import_v1.zip")
+              raise SystemExit("Project ZIP not found")
 
           temp = Path("_claw_import_tmp")
           if temp.exists():
               shutil.rmtree(temp)
-
           temp.mkdir()
 
           with ZipFile(archive) as z:
@@ -51,9 +50,11 @@ jobs:
               )
 
           project = projects[0]
-          print(f"Importing Unity project from: {project}")
 
           for item in project.iterdir():
+              if item.name in {".github", ".git"}:
+                  continue
+
               destination = Path.cwd() / item.name
               if item.is_dir():
                   shutil.copytree(item, destination, dirs_exist_ok=True)
@@ -61,7 +62,7 @@ jobs:
                   shutil.copy2(item, destination)
 
           shutil.rmtree(temp)
-          print("CLAW project files imported.")
+          print("CLAW project imported successfully")
           PY
 
       - name: Commit imported project
@@ -70,7 +71,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           if git diff --cached --quiet; then
-            echo "No new changes to commit."
+            echo "No new changes"
           else
             git commit -m "Import CLAW Unity project"
             git push
